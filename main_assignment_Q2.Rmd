@@ -1,0 +1,88 @@
+##Question 2 a
+```{r}
+setwd('C:/Users/Tamia/Desktop/TCD-Semester2/ASM/mainAssignment')
+chess_df <- read.csv("analysis.csv")
+```
+Pre-process data
+```{r}
+normalize<-function(data){
+  return((data-mean(data)) / sd(data))
+}
+
+df <- chess_df[,c('Year','White.Num.Moves','Black.Num.Moves','Combined.ACPL','PreDeepBlue')]
+df
+process_df <- aggregate(x=df[c('Combined.ACPL','White.Num.Moves','Black.Num.Moves')],by=list(Year=df$Year,PreDeepBlue=df$PreDeepBlue),mean)
+process_df
+```
+Explore the explanatory variables
+```{r}
+hist(process_df$Combined.ACPL)
+```
+Correlation of variables
+```{r}
+cor(process_df)
+```
+View relationship between Year and average combined ACPL
+```{r}
+plot(Combined.ACPL ~ Year, data = process_df)
+```
+View relationship between PreDeepBlue and average combined ACPL
+```{r}
+boxplot(Combined.ACPL ~ PreDeepBlue, data = process_df)
+```
+View relationship between White.Num.Moves and Black.Num.Moves and average combined ACPL
+```{r}
+pairs(subset(process_df, select = c(White.Num.Moves,Combined.ACPL,Black.Num.Moves)))
+```
+```{r}
+process_df$PreDeepBlue <- factor(process_df$PreDeepBlue)
+process_df
+```
+Model with 'PreDeepBlue' and 'Year'
+```{r}
+lm1 <- lm(Combined.ACPL ~ PreDeepBlue+Year, data = process_df)
+summary(lm1)
+```
+
+```{r}
+library(car)
+qqPlot(lm1, which = 2)
+```
+```{r}
+step_AIC_backward <- step(lm1)
+step_AIC_backward
+```
+Re-fit model and consider the second order term
+```{r}
+lm2 <- lm(Combined.ACPL ~ Year+I(Year^2), data = process_df)
+summary(lm2)
+```
+
+```{r}
+qqPlot(lm2, which = 2)
+```
+```{r}
+step_AIC_backward <- step(lm2)
+step_AIC_backward
+```
+Predict players performance in next 10 years
+```{r}
+Year <- c(2022,2023,2024,2025,2026,2027,2028,2029,2030,2031)
+pre_df <-  data.frame(Year)
+pre_df
+ACPL_predict <- predict(lm2, newdata = pre_df)
+plot(pre_df$Year,ACPL_predict)
+```
+
+```{r}
+ACPL_hat <- predict(lm2)
+plot(process_df$Year,ACPL_hat)
+```
+
+
+
+
+
+
+
+

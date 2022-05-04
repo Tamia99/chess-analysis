@@ -1,0 +1,241 @@
+```{r}
+setwd('C:/Users/Tamia/Desktop/TCD-Semester2/ASM/mainAssignment')
+chess_df <- read.csv("analysis.csv")
+```
+##Question 1 a
+Select useful data.
+```{r}
+df <- subset(chess_df,White.Player=='Anand, Viswanathan'|White.Player=='Carlsen, Magnus')
+df <- df[,c('White.Player','White.ACPL')]
+df
+```
+Summary of data and standard deviation.
+```{r}
+summary(df)
+sd(df$White.ACPL)
+```
+Plot box plot.
+```{r}
+library(ggplot2)
+ggplot(df) + geom_boxplot(aes(White.Player, White.ACPL, fill = White.Player)) + geom_jitter(aes(White.Player, White.ACPL, shape = df$White.Player))
+```
+Calculate the mean, median and standard deviation of ACPL for each player.
+```{r}
+tapply(df$White.ACPL, df$White.Player, mean)
+```
+```{r}
+tapply(df$White.ACPL, df$White.Player, median)
+```
+```{r}
+tapply(df$White.ACPL, df$White.Player, sd)
+```
+Perform t-test
+```{r}
+t.test(White.ACPL ~ White.Player, data=df, var.equal = TRUE)
+```
+```{r}
+compare_2_gibbs <- function(y, ind, maxiter = 10000)
+{
+  mu0 = 12.5
+  tau0 = 1/(10^2)
+  del0 = 0
+  gamma0 = 1/(10^2)
+  a0 = 1
+  b0 = 10^2
+  
+  y1 <- y[ind == 1]
+  y2 <- y[ind == 2]
+
+  n1 <- length(y1) 
+  n2 <- length(y2)
+
+  # starting values
+  mu <- (mean(y1) + mean(y2)) / 2
+  del <- (mean(y1) - mean(y2)) / 2
+  
+
+  mat_store <- matrix(0, nrow = maxiter, ncol = 3)
+  
+  an <- a0 + (n1 + n2)/2
+  
+  for(s in 1 : maxiter) 
+  {
+  
+    # sample tau
+    bn <- b0 + 0.5 * (sum((y1 - mu - del) ^ 2) + sum((y2 - mu + del) ^ 2))
+    tau <- rgamma(1, an, bn)
+  
+    # sample mu
+    taun <-  tau0 + tau * (n1 + n2)
+    mun <- (tau0 * mu0 + tau * (sum(y1 - del) + sum(y2 + del))) / taun
+    mu <- rnorm(1, mun, sqrt(1/taun))
+  
+    # sample del
+    gamman <-  gamma0 + tau*(n1 + n2)
+    deln <- ( del0 * gamma0 + tau * (sum(y1 - mu) - sum(y2 - mu))) / gamman
+    del<-rnorm(1, deln, sqrt(1/gamman))
+  
+    # store values
+    mat_store[s, ] <- c(mu, del, tau)
+  }
+  colnames(mat_store) <- c("mu", "del", "tau")
+  return(mat_store)
+}
+
+library(MCMCpack)
+df$White.Player[df$White.Player == "Anand, Viswanathan"] = 1
+df$White.Player[df$White.Player == "Carlsen, Magnus"] = 2
+fit <- compare_2_gibbs(df$White.ACPL, as.factor(df$White.Player))
+plot(as.mcmc(fit))
+```
+Diagnosis of the sampler.
+```{r}
+raftery.diag(as.mcmc(fit))
+```
+Get summary, know the parameters of posterior distribution. 
+```{r}
+apply(fit, 2, mean)
+```
+```{r}
+apply(fit, 2, sd)
+```
+Generate posterior for each player and plot the difference between mean of ACPL.
+```{r}
+player1 <- rnorm(10000, fit[,1]+fit[,2], sd=1/sqrt(fit[, 3])) 
+player2 <- rnorm(10000, fit[,1]-fit[,2], sd=1/sqrt(fit[, 3])) 
+ggplot(data.frame(diff = player1 - player2)) + stat_bin(aes(diff))
+```
+```{r}
+ggplot(data.frame(player1, player2)) + geom_point(aes(player1, player2), alpha = 0.3) + geom_abline(slope = 1, intercept = 0)
+```
+Probability of one player is better than the other.
+```{r}
+mean(player1 > player2)
+```
+##Question 1 b
+Select useful data
+```{r}
+white_df <- chess_df[,c('White.Player','White.ACPL','White.Player_ID')]
+white_df
+```
+Summary of data and standard deviation.
+```{r}
+summary(white_df)
+sd(white_df$White.ACPL)
+```
+
+Visualize the data
+```{r}
+white_df$White.Player <- factor(white_df$White.Player)
+nlevels(white_df$White.Player)
+ggplot(white_df) + geom_boxplot(aes(x = reorder(White.Player, White.ACPL, median), White.ACPL, 
+                               fill = reorder(White.Player, White.ACPL, median)), show.legend=FALSE) +
+                              theme(axis.text.x = element_text(angle = 90))
+```
+```{r}
+ggplot(white_df, aes(x = reorder(White.Player, White.Player, length))) + stat_count() + theme(axis.text.x = element_text(angle = 90))
+```
+```{r}
+ggplot(white_df, aes(White.ACPL)) + stat_bin()
+```
+```{r}
+ggplot(data.frame(size = tapply(white_df$White.ACPL, white_df$White.Player, length), 
+                  mean_score = tapply(white_df$White.ACPL, white_df$White.Player, mean)), 
+       aes(size, mean_score)) + geom_point()
+```
+```{r}
+compare_m_gibbs <- function(y, ind, maxiter = 10000)
+{
+  
+  mu0 = 20
+  tau0 = 1/100
+  a0 = 1
+  b0 = 625
+  alpha0 = 1
+  beta0 = 625
+  
+  # starting values
+  m <- nlevels(ind)
+  ybar <- theta <- tapply(y, ind, mean)
+  tau_w <- mean(1 / tapply(y, ind, var)) 
+  mu <- mean(theta)
+  tau_b <-var(theta)
+  n_m <- tapply(y, ind, length)
+  alpha_n <- alpha0 + sum(n_m)/2
+  
+  theta_mat <- matrix(0, nrow=maxiter, ncol=m)
+  mat_store <- matrix(0, nrow=maxiter, ncol=3)
+  
+  for(s in 1:maxiter) 
+  {
+    
+    # sample thetas
+    for(j in 1:m) 
+    {
+      taun <- n_m[j] * tau_w + tau_b
+      thetan <- (ybar[j] * n_m[j] * tau_w + mu * tau_b) / taun
+      theta[j]<-rnorm(1, thetan, 1/sqrt(taun))
+    }
+    
+    # sample tau_w
+    ss <- 0
+    for(j in 1:m){
+      ss <- ss + sum((y[ind == j] - theta[j])^2)
+    }
+    beta_n <- beta0 + ss/2
+    tau_w <- rgamma(1, alpha_n, beta_n)
+    
+    # sample mu
+    tau_m <- m * tau_b + tau0
+    mu_m <- (mean(theta) * m * tau_b + mu0 * tau0) / tau_m
+    mu <- rnorm(1, mu_m, 1/ sqrt(tau_m)) 
+    
+    # sample tau_b
+    a_m <- a0 + m/2
+    b_m <- b0 + sum((theta - mu)^2) / 2
+    tau_b <- rgamma(1, a_m, b_m)
+     
+    # store values
+    theta_mat[s,] <- theta
+    mat_store[s, ] <- c(mu, tau_w, tau_b)
+  }
+  colnames(mat_store) <- c("mu", "tau_w", "tau_b")
+  colnames(theta_mat) <- levels(ind)
+  return(list(params = mat_store, theta = theta_mat))
+}
+
+fit2 <- compare_m_gibbs(white_df$White.ACPL, as.factor(white_df$White.Player_ID))
+plot(as.mcmc(fit2$params))
+```
+Diagnosis of the sampler.
+```{r}
+raftery.diag(as.mcmc(fit2$params))
+```
+
+```{r}
+apply(fit2$params, 2, mean)
+apply(fit2$params, 2, sd)
+mean(1/sqrt(fit2$params[, 3]))
+sd(1/sqrt(fit2$params[, 3]))
+```
+```{r}
+# reformat samples
+samples_df <- data.frame(samples = as.numeric(fit2$theta), 
+                       player = rep(1:ncol(fit2$theta), each = nrow(fit2$theta))) 
+
+samples_mean <- apply(samples_df, 2, mean)
+sort(samples_mean, decreasing = TRUE) 
+```
+```{r}
+ggplot(samples_df) + geom_boxplot(aes(x = reorder(player, samples, median), samples, 
+                               fill = reorder(player, samples, median)), show.legend=FALSE)
+```
+```{r}
+theta_hat <- apply(fit2$theta, 2, mean)
+ggplot(data.frame(size = tapply(white_df$White.ACPL, white_df$White.Player_ID, length), theta_hat = theta_hat), aes(size, theta_hat)) + geom_point()
+```
+
+
+
+
+
