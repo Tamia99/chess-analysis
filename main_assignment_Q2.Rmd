@@ -1,6 +1,5 @@
 ##Question 2 a
 ```{r}
-setwd('C:/Users/Tamia/Desktop/TCD-Semester2/ASM/mainAssignment')
 chess_df <- read.csv("analysis.csv")
 ```
 Pre-process data

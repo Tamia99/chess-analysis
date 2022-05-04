@@ -1,5 +1,4 @@
 ```{r}
-setwd('C:/Users/Tamia/Desktop/TCD-Semester2/ASM/mainAssignment')
 chess_df <- read.csv("analysis.csv")
 ```
 ##Question 1 a
